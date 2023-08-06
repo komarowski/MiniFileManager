@@ -1,0 +1,499 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>File manager</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Segoe WP", "Helvetica Neue", "RobotoRegular", sans-serif;
+      font-size: 16px;
+      line-height: 1.2;
+      display: flex;
+      justify-content: center;
+      background-color: #f0f2f4;
+    }
+
+    .link {
+      cursor:pointer;
+      font-weight: 600;
+      color: #247aa8;
+      text-decoration: underline;
+    }
+
+      .link:hover {
+        color: #1b5b7e;
+      }
+
+    .flex {
+      display: flex;
+      align-items: center;
+    }
+
+    .flex-wrap {
+      display: flex;
+      flex-wrap: wrap;
+    }
+
+    .flex-end {
+      display: flex;
+      justify-content: end;
+    }
+
+    .flex-column {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .margin-bottom {
+      margin-bottom: 6px;
+    }
+
+    .padding-12 {
+      padding: 12px 18px;
+    }
+
+    .round {
+      border-radius: 5px;
+    }
+
+    .responsive {
+      display: block;
+      overflow-x: auto;
+    }
+
+    .main {
+      margin: 30px 12px 0 12px;
+      border: 1px solid #c3cdd5;
+      background-color: white;
+      max-width: 800px;
+      width: 99%;
+    }
+
+    .main-header {
+      justify-content: space-between;
+      font-weight: 400;
+      font-size: 20px;
+    }
+    
+    .table {
+      text-align: left;
+      border-collapse: collapse;
+      border-spacing: 0px;
+      width: 100%;
+      min-width: 500px;
+    }
+
+      .table tr:nth-child(2n) {
+        background-color: #f8f8f8;
+      }
+
+      .table th {
+        background-color: #303b44;
+        color: white;
+        font-weight: 400;
+        padding: 6px 12px;
+      }
+
+      .table td {
+        border: 1px solid #4e606e;
+        padding: 6px 12px;
+      }
+
+        .table td:first-child {
+          border-left: 0px;
+        }
+
+        .table td:last-child {
+          border-right: 0px;
+          text-align: center;
+          padding: 3px 12px;
+        }
+
+    .icon {
+      width: 20px;
+      height: 20px;
+      margin-right: 6px;
+    }
+
+    .icon-dir {
+      background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' height='20px' viewBox='0 0 24 24' width='20px' fill='%231b657e'><path d='M0 0h24v24H0z' fill='none'/><path d='M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z'/></svg>") no-repeat;
+    }
+
+    .icon-file {
+      background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' height='20px' viewBox='0 0 24 24' width='20px' fill='%231b657e'><path d='M0 0h24v24H0V0z' fill='none'/><path d='M8 16h8v2H8zm0-4h8v2H8zm6-10H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z'/></svg>") no-repeat;
+    }
+
+    .btn {
+      color: white;
+      display: inline-block;
+      padding: 4px 8px;
+      vertical-align: middle;
+      overflow: hidden;
+      text-decoration: none;
+      text-align: center;
+      cursor: pointer;
+      white-space: nowrap;
+      border: 0px;
+    }
+
+    .btn-edit {
+      background-color: #ee9950;
+      margin-right: 5px;
+    }
+
+      .btn-edit:hover {
+        background-color: #ee8a33;
+      }
+
+    .btn-delete {
+      background-color: #ff6f69;
+    }
+
+      .btn-delete:hover {
+        background-color: #fc5650;
+      }
+
+    .btn-primary {
+      background-color: #708495;
+      width: 100%;
+      margin-bottom: 5px;
+    }
+
+      .btn-primary:hover {
+        background-color: #5d768b;
+      }
+
+    .btn-submit {
+      width: 100px;
+    }
+
+    .btn-close {
+      color: #303b44;
+      font-size: 28px;
+      cursor: pointer;
+    }
+
+    .details {
+      position: relative;
+    }
+
+    .details-summary {
+      min-width: 100px;
+      padding: 6px 12px;
+      background: white;
+      cursor: pointer;
+      color: #303b44;
+    }
+
+    .details summary > * {
+      display: inline;
+    }
+
+    .details-dropdown {
+      position: absolute;
+      top: 40px;
+      padding: 4px 4px 0px 4px;
+      background: #f0f2f4;
+      border: 1px solid #303b44;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1;
+      padding-top: 100px;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgb(0, 0, 0);
+      background-color: rgba(0, 0, 0, 0.4);
+    }
+
+    .modal-content {
+      position: relative;
+      background-color: #fefefe;
+      margin: auto;
+      max-width: 750px;
+      box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+    }
+
+    .modal-input {
+      font-family: inherit;
+      font-size: inherit;
+      padding: 4px;
+      display: block;
+      border: 1px solid #c3cdd5;
+    }
+
+    .modal-textarea {
+      resize: vertical;
+    }
+  </style>
+</head>
+<body>
+  <div class="main round">
+    <header class="flex main-header padding-12">
+      <div id="header-link" class="flex-wrap"></div>
+      <details class="details">
+        <summary class="details-summary round">
+          <div>Actions</div>
+        </summary>
+        <div class="details-dropdown round">
+          <button data-modal="modal-new-file" class="btn btn-primary btn-open"> Add file </button>
+          <button data-modal="modal-folder" class="btn btn-primary btn-open"> Add folder </button>
+          <button data-modal="modal-upload" class="btn btn-primary btn-open"> Upload files </button>
+          <button class="btn btn-primary" onclick="downloadZip()"> Download </button>
+        </div>
+      </details>
+    </header>
+    <div class="padding-12">
+      <div class="responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Size</th>
+              <th>Last Modified</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div id="modal-new-file" class="modal">
+    <div class="modal-content round">
+      <div class="padding-12">
+        <div class="flex-end">
+          <span class="btn-close">&times;</span>
+        </div>
+        <div class="flex-column">
+          <label class="margin-bottom">File name</label>
+          <input name="Name" type="text" autocomplete="off" class="modal-input margin-bottom" />
+          <label class="margin-bottom">File text</label>
+          <textarea name="Text" class="modal-input modal-textarea margin-bottom" rows="10"></textarea>
+          <button data-api="/file" class="btn btn-primary btn-submit round"> Save </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="modal-edit-file" class="modal">
+    <div class="modal-content round">
+      <div class="padding-12">
+        <div class="flex-end">
+          <span class="btn-close">&times;</span>
+        </div>
+        <div class="flex-column">
+          <label class="margin-bottom">File name</label>
+          <input id="file-name" name="Name" type="text" class="modal-input margin-bottom" disabled />
+          <label class="margin-bottom">File text</label>
+          <textarea id="file-text" name="Text" class="modal-input modal-textarea margin-bottom" rows="10"></textarea>
+          <button data-api="/file" class="btn btn-primary btn-submit round"> Save </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="modal-folder" class="modal">
+    <div class="modal-content round">
+      <div class="padding-12">
+        <div class="flex-end">
+          <span class="btn-close">&times;</span>
+        </div>
+        <div class="flex-column">
+          <label class="margin-bottom">Folder name</label>
+          <input name="Name" type="text" class="modal-input margin-bottom" />
+          <button data-api="/folder" class="btn btn-primary btn-submit round"> Save </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="modal-upload" class="modal">
+    <div class="modal-content round">
+      <div class="padding-12">
+        <div class="flex-end">
+          <span class="btn-close">&times;</span>
+        </div>
+        <div class="flex-column">
+          <label class="margin-bottom">Upload files</label>
+          <input name="Files" type="file" class="modal-input margin-bottom" multiple />
+          <button data-api="/upload" class="btn btn-primary btn-submit round"> Save </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Full URL of the file manager.
+    const apiUrl = "{@apiUrl}";
+
+    // Performs a get request.
+    const fetchGet = async (url, defaultValue = null, isText = false) => {
+      const response = await fetch(apiUrl + url);
+      if (response.ok) {
+        return isText ? response.text() : response.json();
+      }
+      return defaultValue;
+    }
+
+    // Performs a post request.
+    const fetchPost = async (url, method, body = {}) => {
+      return await fetch(apiUrl + url,
+        {
+          method: method,
+          body: body
+        });
+    }
+
+    // Gets the "path" parameter (current directory) from the URL query.
+    const getPathParam = () => new URLSearchParams(window.location.search).get("path");
+
+    // Updates the "path" parameter.
+    const updatePathParam = (path) => {
+      const searchParams = new URLSearchParams(window.location.search);
+      searchParams.set("path", path);
+      history.pushState(null, "", `${window.location.pathname}?${searchParams.toString()}`);
+    }
+
+    // Sets the display style property.
+    const displayElement = (element, value = "block") => {
+      element.style.display = value;
+    };
+
+    // Performs a delete file request.
+    const deleteFile = async (name) => {
+      if (confirm(`Are you sure you want to delete the "${name}" file?`) === true) {
+        await fetchPost(`/file?path=${getPathParam()}${name}`, "DELETE");
+        location.reload();
+      }
+    }
+
+    // Performs a delete folder request.
+    const deleteFolder = async (name) => {
+      if (confirm(`Are you sure you want to delete the "${name}" folder?`) === true) {
+        await fetchPost(`/folder?path=${getPathParam()}${name}`, "DELETE");
+        location.reload();
+      }
+    }
+
+    // Performs a download current directory request.
+    const downloadZip = async () => {
+      if (confirm(`Are you sure you want to download the current folder?`) === true) {
+        window.open(`${apiUrl}/download?path=${getPathParam()}`, '_blank');
+      }
+    }
+
+    // Performs a open file request.
+    const openFile = async (fullName) => {
+      window.open(`${apiUrl}/view?path=${fullName}`, '_blank');
+    }
+
+    // Init elements.
+    const header = document.getElementById("header-link");
+    const tableBody = document.getElementById("tbody");
+    const editModalInput = document.getElementById("file-name");
+    const editModalTextarea = document.getElementById("file-text");
+    const submitBtns = document.getElementsByClassName("btn-submit");
+    const modals = document.getElementsByClassName("modal");
+    const openModalBtns = document.getElementsByClassName("btn-open");
+
+    // For each modal, a close event is added when the button is clicked.
+    Array.from(modals, (modal) => {
+      const closeBtn = modal.querySelectorAll(".btn-close")[0];
+      closeBtn.onclick = () => displayElement(modal, "none");
+    });
+
+    // When the user clicks anywhere outside of the modal, close it.
+    window.onclick = (event) => {
+      if (event.target.classList.contains("modal")) {
+        displayElement(event.target, "none");
+      }
+    };
+
+    // For each "btn-open" button, a open event is added when the button is clicked.
+    Array.from(openModalBtns, (btn) => {
+      const modalId = btn.dataset.modal;
+      btn.onclick = () => displayElement(modals[modalId]);
+    });
+
+    // For each "btn-submit" button, a submit event is added when the button is clicked.
+    Array.from(submitBtns, (btn) => {
+      btn.onclick = async () => {
+        let formData = new FormData();
+        const inputs = btn.parentNode.querySelectorAll("input, textarea");
+        inputs.forEach((input) => {
+          if (input.type === "file") {
+            formData.append(input.name, input.files[0]);
+          } else {
+            formData.append(input.name, input.value);
+          }
+        })
+        await fetchPost(`${btn.dataset.api}?path=${getPathParam()}`, "POST", formData);
+        location.reload();
+      }
+    });
+
+    // Opens a edit modal and gets the contents of the edit file.
+    const openEditModal = async (name) => {
+      const fileText = await fetchGet(`/file?path=${getPathParam()}${name}`, "not found", true);
+      editModalTextarea.value = fileText;
+      editModalInput.value = name;
+      displayElement(modals["modal-edit-file"]);
+    }
+
+    // Updates links to directories in the header.
+    const updateHeader = (path) => {
+      const pathArray = path.split("/");
+      let html = "";
+      let fullPath = "";
+      for (let i = 0; i < pathArray.length - 1; i++) {
+        fullPath += pathArray[i] + "/";
+        html += `<div class="link" style="margin-right:5px;" onclick="update('${fullPath}')">${pathArray[i]}/</div>`;
+      }
+      header.innerHTML = html;
+    }
+
+    // Gets the table <tr> element.
+    const getTableRow = (file, path) => {
+      if (file.IsDirectory) {
+        return `<tr>
+<td><div class="flex link" onclick="update('${path + file.Name}/')">
+    <i class="icon icon-dir"></i><div>${file.Name}/</div>
+</div></td>
+<td></td>
+<td>${new Date(file.LastModified).toLocaleString()}</td>
+<td><button class="btn btn-delete round" onclick="deleteFolder('${file.Name}')">delete</button></td></tr>`
+      }
+
+      const editButton = (file.Name.endsWith(".html") || file.Name.endsWith(".txt") || file.Name.endsWith(".css") || file.Name.endsWith(".js"))
+        ? `<button class="btn btn-edit round" onclick="openEditModal('${file.Name}')">edit</button>`
+        : "";
+      return `<tr>
+<td><div class="flex link" onclick="openFile('${path + file.Name}')">
+    <i class="icon icon-file"></i><div>${file.Name}</div>
+</div></td>
+<td>${file.Length}</td>
+<td>${new Date(file.LastModified).toLocaleString()}</td>
+<td>${editButton}<button class="btn btn-delete round" onclick="deleteFile('${file.Name}')">delete</button></td></tr>`
+    }
+
+    // Updates table content. 
+    const update = async (path) => {
+      updatePathParam(path);
+      updateHeader(path);
+      tableBody.innerHTML = "";
+      const files = await fetchGet(`/files?path=${path}`, []);
+      files.sort(x => x.IsDirectory ? -1 : 1)
+      files.forEach((file) => {
+        tableBody.insertAdjacentHTML("beforeend", getTableRow(file, path));
+      });
+    }
+
+    const initPath = getPathParam() || "/";
+    update(initPath);
+  </script>
+</body>
+</html>
