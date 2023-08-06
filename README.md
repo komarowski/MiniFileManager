@@ -6,6 +6,7 @@ Thanks to this structure, you can easily add new functionality and change the fr
 
 ## Demo
 
+![](https://github.com/komarowski/MiniFileManager/blob/main/images/demo.gif)
 
 ## Usage
 
