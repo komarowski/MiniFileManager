@@ -1,34 +1,29 @@
 ﻿using Microsoft.Extensions.FileProviders;
-using Microsoft.Extensions.Primitives;
 using System.IO.Compression;
-using System.Net;
 using System.Text;
 using System.Text.Json;
 
 namespace MiniFileManager
 {
   /// <summary>
-  /// File manager middleware.
+  /// File manager service.
   /// </summary>
-  public class FileManagerMiddleware
+  public class FileManagerService
   {
-    private readonly RequestDelegate next;
     private readonly PhysicalFileProvider fileProvider;
     private readonly PathString url;
-    private readonly int urlLength;
     private readonly string root;
     private readonly string? htmlTemplate;
     private string? html;
 
     /// <summary>
-    /// Public constructor for file manager middleware.
+    /// Public constructor for file manager service.
     /// </summary>
-    /// <param name="next">A function that can process an HTTP request.</param>
     /// <param name="root">File manager root directory.</param>
     /// <param name="url">File manager index URL page.</param>
-    /// <param name="htmlTemplate">File manager html template file name.</param>
+    /// <param name="htmlTemplate">File manager html template file path.</param>
     /// <exception cref="DirectoryNotFoundException"></exception>
-    public FileManagerMiddleware(RequestDelegate next, string root, PathString url, string? htmlTemplate = null)
+    public FileManagerService(string root, PathString url, string? htmlTemplate = null)
     {
       if (!Directory.Exists(root))
       {
@@ -36,139 +31,23 @@ namespace MiniFileManager
       }
       this.fileProvider = new PhysicalFileProvider(Path.Combine(Directory.GetCurrentDirectory(), root));
       this.url = url;
-      this.urlLength = url.ToString().Length;
       this.root = root;
       this.htmlTemplate = htmlTemplate;
-      this.next = next;
-    }
-
-    public async Task Invoke(HttpContext context)
-    {
-      if (context.Request.Path.StartsWithSegments(this.url))
-      {
-        var relativePath = context.Request.Path.ToString()[this.urlLength..];
-        try
-        {
-          var isRequestCompleted = await HandleRequestAsync(context, relativePath);
-          if (isRequestCompleted)
-          {
-            return;
-          }
-        }
-        catch (Exception ex)
-        {
-          await HandleExceptionAsync(context, ex);
-          return;
-        }
-      }
-      await this.next.Invoke(context);
     }
 
     /// <summary>
-    /// Handles a request based on its method and path.
+    /// Gets the full path from "path" parameter from request query.
     /// </summary>
-    /// <param name="context">Information about request.</param>
-    /// <param name="path">Request path.</param>
-    /// <returns>true if the request was processed successfully.</returns>
-    async Task<bool> HandleRequestAsync(HttpContext context, string path) => (path, context.Request.Method) switch
-    {
-      ("/", "GET") or ("", "GET") => await SetResponseAsync(context, GetFileManagerHtml(context), "text/html"),
-      ("/files", "GET") => await SetResponseAsync(context, GetDirectoryContents(context), "application/json"),
-      ("/file", "GET") => await SetResponseAsync(context, await GetFileContentAsync(context), "text/plain"),
-      ("/file", "POST") => await SaveFileAsync(context),
-      ("/file", "DELETE") => DeleteFile(context),
-      ("/folder", "POST") => AddFolder(context),
-      ("/folder", "DELETE") => DeleteDirectory(context),
-      ("/upload", "POST") => await UploadFilesAsync(context),
-      ("/download", "GET") => await DownloadAsync(context),
-      ("/view", "GET") => await SendFileAsync(context),
-      _ => false
-    };
-
-    /// <summary>
-    /// Handles an exception that may occur in <see cref="HandleRequestAsync"/>.
-    /// </summary>
-    /// <param name="context">Information about request.</param>
-    /// <param name="exception">Exception.</param>
-    /// <returns>Information about the exception as a json string.</returns>
-    private static async Task HandleExceptionAsync(HttpContext context, Exception exception)
-    {
-      context.Response.ContentType = "application/json";
-      context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-      await context.Response.WriteAsync($"{{ message: \"{exception.Message}\", innerException: \"{exception.InnerException?.Message}\"}}");
-    }
-
-    /// <summary>
-    /// Sets the response body.
-    /// </summary>
-    /// <param name="context">Information about request.</param>
-    /// <param name="body">Response body.</param>
-    /// <param name="type">Response content type.</param>
-    /// <returns>true if the response body is set.</returns>
-    private static async Task<bool> SetResponseAsync(HttpContext context, string? body, string type)
-    {
-      if (body is null)
-      {
-        return false;
-      }
-
-      byte[] bytes = Encoding.UTF8.GetBytes(body);
-      context.Response.StatusCode = (int)HttpStatusCode.OK;
-      context.Response.ContentType = type;
-      context.Response.ContentLength = bytes.Length;
-      await context.Response.Body.WriteAsync(bytes);
-      return true;
-    }
-
-    /// <summary>
-    /// Gets the html of the main page of the file manager.
-    /// </summary>
-    /// <param name="context">Information about request.</param>
-    /// <returns>html text.</returns>
-    private string GetFileManagerHtml(HttpContext context)
-    {
-      if (this.html is null)
-      {
-        if (!string.IsNullOrEmpty(this.htmlTemplate) && File.Exists(this.htmlTemplate))
-        {
-          this.html = File.ReadAllText(this.htmlTemplate);
-        }
-        else
-        {
-          this.html = HtmlTemplate;
-        }
-        // In html replace "{@apiUrl}" with the full URL of the file manager.
-        // This is for fetch requests in js code.
-        var apiUrl = $"{context.Request.Scheme}://{context.Request.Host.Value}{this.url}";
-        this.html = this.html.Replace("{@apiUrl}", apiUrl);
-      }
-      return this.html;
-    }
-
-    /// <summary>
-    /// Gets the "path" value from request query.
-    /// </summary>
-    /// <param name="context">Information about request.</param>
-    /// <param name="path">"path" value.</param>
-    /// <returns>true if query contains the "path" value.</returns>
-    private static bool TryGetPathValue(HttpContext context, out StringValues path)
-    {
-      return context.Request.Query.TryGetValue("path", out path);
-    }
-
-    /// <summary>
-    /// Gets the full path from "path" value from request query.
-    /// </summary>
-    /// <param name="context">Information about request.</param>
+    /// <param name="path">"path" parameter from request query.</param>
     /// <param name="fullPath">The full path of the file or directory.</param>
     /// <param name="isDirectory">true if the full path is a directory.</param>
     /// <returns>true if the full path exists as a file or directory.</returns>
-    private bool TryGetFullPath(HttpContext context, out string fullPath, bool isDirectory = false)
+    private bool TryGetFullPath(string? path, out string fullPath, bool isDirectory = false)
     {
       fullPath = string.Empty;
-      if (TryGetPathValue(context, out var relativePath))
+      if (!string.IsNullOrEmpty(path))
       {
-        fullPath = this.root + relativePath;
+        fullPath = this.root + path;
         return isDirectory
           ? Directory.Exists(fullPath)
           : File.Exists(fullPath);
@@ -177,158 +56,128 @@ namespace MiniFileManager
     }
 
     /// <summary>
-    /// Gets the contents of a directory.
+    /// Registers file manager endpoints.
     /// </summary>
-    /// <param name="context">Information about request.</param>
-    /// <returns><see cref="IDirectoryContents"/> json string or null.</returns>
-    private string? GetDirectoryContents(HttpContext context)
+    /// <param name="app">WebApplication instance.</param>
+    public void RegisterFileManagerEndpoints(WebApplication app)
     {
-      if (TryGetPathValue(context, out var path))
-      {
-        var directoryContent = this.fileProvider.GetDirectoryContents(path);
-        return JsonSerializer.Serialize(directoryContent);
-      }
-      return null;
-    }
-
-    /// <summary>
-    /// Gets the contents of a file.
-    /// </summary>
-    /// <param name="context">Information about request.</param>
-    /// <returns>File text or null.</returns>
-    private async Task<string?> GetFileContentAsync(HttpContext context)
-    {
-      if (TryGetFullPath(context, out var fullPath))
-      {
-        return await File.ReadAllTextAsync(fullPath);
-      }
-      return null;
-    }
-
-    /// <summary>
-    /// Saves the file.
-    /// </summary>
-    /// <param name="context">Information about request.</param>
-    /// <returns>true if file is saved.</returns>
-    private async Task<bool> SaveFileAsync(HttpContext context)
-    {
-      if (TryGetFullPath(context, out var directory, true))
-      {
-        var name = context.Request.Form["Name"];
-        var text = context.Request.Form["Text"];
-        var fullPath = Path.Combine(directory, name);
-        await File.WriteAllTextAsync(fullPath, text, Encoding.UTF8);
-        return true;
-      }
-      return false;
-    }
-
-    /// <summary>
-    /// Deletes a file.
-    /// </summary>
-    /// <param name="context">Information about request.</param>
-    /// <returns>true if the file is deleted.</returns>
-    private bool DeleteFile(HttpContext context)
-    {
-      if (TryGetFullPath(context, out var path))
-      {
-        File.Delete(path);
-        return true;
-      }
-      return false;
-    }
-
-    /// <summary>
-    /// Adds a folder.
-    /// </summary>
-    /// <param name="context">Information about request.</param>
-    /// <returns>true if the folder is added.</returns>
-    private bool AddFolder(HttpContext context)
-    {
-      if (TryGetFullPath(context, out var directory, true))
-      {
-        var name = context.Request.Form["Name"];
-        var fullPath = Path.Combine(directory, name);
-        if (!Directory.Exists(fullPath))
+      // Gets the html of the main page of the file manager.
+      app.MapGet($"{this.url}/", (HttpContext context) => {
+        if (this.html is null)
         {
-          Directory.CreateDirectory(fullPath);
-          return true;
+          if (!string.IsNullOrEmpty(this.htmlTemplate) && File.Exists(this.htmlTemplate))
+          {
+            this.html = File.ReadAllText(this.htmlTemplate);
+          }
+          else
+          {
+            this.html = HtmlTemplate;
+          }
+          // In html replace "{@apiUrl}" with the full URL of the file manager.
+          // This is for fetch requests in js code.
+          var apiUrl = $"{context.Request.Scheme}://{context.Request.Host.Value}{this.url}";
+          this.html = this.html.Replace("{@apiUrl}", apiUrl);
         }
-      }
-      return false;
-    }
+        return Results.Text(this.html, "text/html");
+      });
 
-    /// <summary>
-    /// Deletes a directory.
-    /// </summary>
-    /// <param name="context">Information about request.</param>
-    /// <returns>true if the directory is deleted.</returns>
-    private bool DeleteDirectory(HttpContext context)
-    {
-      if (TryGetFullPath(context, out var directory, true))
-      {
-        Directory.Delete(directory);
-        return true;
-      }
-      return false;
-    }
-
-    /// <summary>
-    /// Uploads files to the current directory.
-    /// </summary>
-    /// <param name="context">Information about request.</param>
-    /// <returns>true if files have been uploaded.</returns>
-    private async Task<bool> UploadFilesAsync(HttpContext context)
-    {
-      if (TryGetFullPath(context, out var directory, true))
-      {
-        foreach (var file in context.Request.Form.Files)
+      // Gets the contents of a current directory.
+      app.MapGet($"{this.url}/files", (string? path) => {
+        if (TryGetFullPath(path, out var fullPath, true))
         {
-          var fullPath = Path.Combine(directory, file.FileName);
-          using Stream fileStream = new FileStream(fullPath, FileMode.Create);
-          await file.CopyToAsync(fileStream);
+          var directoryContent = this.fileProvider.GetDirectoryContents(path);
+          var jsonString = JsonSerializer.Serialize(directoryContent);
+          return Results.Text(jsonString, "application/json");
         }
-        return true;
-      }
-      return false;
-    }
+        return null;
+      });
 
-    /// <summary>
-    /// Downloads the current directory as a zip file.
-    /// </summary>
-    /// <param name="context">Information about request.</param>
-    /// <returns>true if the file has been downloaded.</returns>
-    private async Task<bool> DownloadAsync(HttpContext context)
-    {
-      if (TryGetFullPath(context, out var directory, true))
-      {
-        var zipFileName = "backup.zip";
-        if (File.Exists(zipFileName))
+      // Gets the text of the file.
+      app.MapGet($"{this.url}/file", async (string? path) => {
+        if (TryGetFullPath(path, out var fullPath))
         {
-          File.Delete(zipFileName);
+          var fileText = await File.ReadAllTextAsync(fullPath);
+          return Results.Text(fileText, "text/plain");
         }
-        ZipFile.CreateFromDirectory(directory, zipFileName);
-        context.Response.ContentType = "application/zip";
-        context.Response.Headers.ContentDisposition = $"attachment; filename={zipFileName}";
-        await context.Response.SendFileAsync(zipFileName);
-        return true;
-      }
-      return false;
-    }
+        return null;
+      });
 
-    /// <summary>
-    /// Sends the given file.
-    /// </summary>
-    /// <param name="context">Information about request.</param>
-    /// <returns>true if the file was sent.</returns>
-    private async Task<bool> SendFileAsync(HttpContext context)
-    {
-      if (TryGetFullPath(context, out var fullPath))
-      {
-        await context.Response.SendFileAsync(fullPath);
-        return true;
-      }
-      return false;
+      // Saves the file.
+      app.MapPost($"{this.url}/file", async (HttpContext context, string? path) => {
+        if (TryGetFullPath(path, out var directory, true))
+        {
+          var name = context.Request.Form["Name"];
+          var text = context.Request.Form["Text"];
+          var fullPath = Path.Combine(directory, name);
+          await File.WriteAllTextAsync(fullPath, text, Encoding.UTF8);
+        }
+      });
+
+      // Deletes a file.
+      app.MapDelete($"{this.url}/file", (string? path) => {
+        if (TryGetFullPath(path, out var fullPath))
+        {
+          File.Delete(fullPath);
+        }
+      });
+
+      // Adds a folder.
+      app.MapPost($"{this.url}/folder", (HttpContext context, string? path) => {
+        if (TryGetFullPath(path, out var directory, true))
+        {
+          var name = context.Request.Form["Name"];
+          var fullPath = Path.Combine(directory, name);
+          if (!Directory.Exists(fullPath))
+          {
+            Directory.CreateDirectory(fullPath);
+          }
+        }
+      });
+
+      // Deletes a directory.
+      app.MapDelete($"{this.url}/folder", (string? path) => {
+        if (TryGetFullPath(path, out var directory, true))
+        {
+          Directory.Delete(directory);
+        }
+      });
+
+      // Uploads files to the current directory.
+      app.MapPost($"{this.url}/upload", async (HttpContext context, string? path) => {
+        if (TryGetFullPath(path, out var directory, true))
+        {
+          foreach (var file in context.Request.Form.Files)
+          {
+            var fullPath = Path.Combine(directory, file.FileName);
+            using Stream fileStream = new FileStream(fullPath, FileMode.Create);
+            await file.CopyToAsync(fileStream);
+          }
+        }
+      });
+
+      // Downloads the current directory as a zip file.
+      app.MapGet($"{this.url}/download", async (string? path) => {
+        if (TryGetFullPath(path, out var directory, true))
+        {
+          var zipFileName = "backup.zip";
+          if (File.Exists(zipFileName))
+          {
+            File.Delete(zipFileName);
+          }
+          ZipFile.CreateFromDirectory(directory, zipFileName);
+          var bytes = await File.ReadAllBytesAsync(zipFileName);
+          return Results.File(bytes, "application/zip", zipFileName);
+        }
+        return null;
+      });
+
+      // Sends the given file.
+      app.MapGet($"{this.url}/view", async (HttpContext context, string? path) => {
+        if (TryGetFullPath(path, out var fullPath))
+        {
+          await context.Response.SendFileAsync(fullPath);
+        }
+      });
     }
 
     private const string HtmlTemplate = @"<!DOCTYPE html>
